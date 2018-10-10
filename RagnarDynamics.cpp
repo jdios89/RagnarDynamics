@@ -2,6 +2,7 @@
 #include "RagnarDynamics.h"
 #include <Matrix.h>
 #include <Ragnarkinematics.h>
+#include <math.h>
 
 void ragnarMassCentrGrav(
     double theta[4], double dtheta[4], float (*params)[4][8], 
@@ -805,10 +806,10 @@ void ragnarTorques(
     (*torque)[2] = tau_lambda._entity[2][0];
     (*torque)[3] = tau_lambda._entity[3][0];
 }
-void ragnarTorquesf(
+void ragnarTorquesfimp(
     float q[7], float dtheta[4], float ddq[7], float params[4][8], 
     float parammass[6], float sc[4][6],float sct[8], float g, 
-    float (*torque)[4])
+    float (*torque)[4], float impednce[3])
 {
     float massvector[7];
     float coriolis[7];
@@ -823,11 +824,36 @@ void ragnarTorquesf(
     ragnarMassvCentrGravf(
         theta, dtheta, ddq, params, parammass, sc, &massvector, &coriolis, 
         &grav, sct, g);
+    // TEST ADDING THE FRICTION PARAMETERS 
+    //friction = [0.6841, 0.0098; 0.8224, 0.018; 0.6646, 0.0188; 0.6911, 0.0259];
+
+    // float f1f2[2][4] = {{0.6841, 0.8224, 0.6646, 0.6911},
+    //                     {0.0098, 0.018, 0.0188, 0.0259}};
+    float f1f2[2][4] = {{0.6841, 0.7224, 0.6646, 0.6911},
+                        {0.0098, 0.018, 0.0188, 0.0259}};
+
+    float friction[7]; 
+    for (int i=0; i<4; i++){
+        if (dtheta[i] > 0.0) 
+            friction[i] = f1f2[0][i] * (1-expf(-3.0 * abs(dtheta[i])));
+        else if (dtheta[i] < 0.0) 
+            friction[i] = -f1f2[0][i] * (1-expf(-3.0 * abs(dtheta[i])));
+        else friction[i] = 0.0; 
+        
+        friction[i] = friction[i] + f1f2[1][i]*dtheta[i];
+    }
+    for (int i=4; i<7; i++) friction[i] = 0; 
     //**** Create the right hand side of the equation
     float f[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    float impd[7]; 
+    for (int i=0; i<4; i++) impd[i] = 0.0;
+    for (int i=4; i<7; i++) impd[i] = impednce[i-4]; 
+    
     for (int i = 0; i < 7; i++)
-        f[i] = massvector[i] + coriolis[i] + grav[i];
-
+        f[i] = massvector[i] + coriolis[i] + grav[i] + impd[i]; // + friction[i]; 
+    // Matrix<float> massv(7,1, (float*) f);
+    // massv.show();
+    
     // get the constraint jacobian
     float A[4][3];
     float B[4][4];
@@ -862,6 +888,9 @@ void ragnarTorquesf(
             }
         }
     }
+    // Matrix<float> massv(7,8, (float*) MC);
+    // massv.show();
+    
     float MCt[8][7];
     for (int i = 0; i < 7; i++)
         for (int j = 0; j < 8; j++)
@@ -900,6 +929,132 @@ void ragnarTorquesf(
     (*torque)[1] = tau_lambda._entity[1][0];
     (*torque)[2] = tau_lambda._entity[2][0];
     (*torque)[3] = tau_lambda._entity[3][0];
+
+    for(int i=0; i<4; i++) (*torque)[i] = tau_lambda._entity[i][0];
+                                           // + friction[i];
+}
+void ragnarTorquesf(
+    float q[7], float dtheta[4], float ddq[7], float params[4][8], 
+    float parammass[6], float sc[4][6],float sct[8], float g, 
+    float (*torque)[4])
+{
+    float massvector[7];
+    float coriolis[7];
+    float grav[7];
+    float theta[4];
+    theta[0] = q[0];
+    theta[1] = q[1];
+    theta[2] = q[2];
+    theta[3] = q[3];
+    // get the mass vector Mq*ddq , coriolis and centrifugal vector and gravity
+    // vector
+    ragnarMassvCentrGravf(
+        theta, dtheta, ddq, params, parammass, sc, &massvector, &coriolis, 
+        &grav, sct, g);
+    // TEST ADDING THE FRICTION PARAMETERS 
+    //friction = [0.6841, 0.0098; 0.8224, 0.018; 0.6646, 0.0188; 0.6911, 0.0259];
+
+    // float f1f2[2][4] = {{0.6841, 0.8224, 0.6646, 0.6911},
+    //                     {0.0098, 0.018, 0.0188, 0.0259}};
+    float f1f2[2][4] = {{0.6841, 0.7224, 0.6646, 0.6911},
+                        {0.0098, 0.018, 0.0188, 0.0259}};
+
+    float friction[7]; 
+    for (int i=0; i<4; i++){
+        if (dtheta[i] > 0.0) 
+            friction[i] = f1f2[0][i] * (1-expf(-3.0 * abs(dtheta[i])));
+        else if (dtheta[i] < 0.0) 
+            friction[i] = -f1f2[0][i] * (1-expf(-3.0 * abs(dtheta[i])));
+        else friction[i] = 0.0; 
+        
+        friction[i] = friction[i] + f1f2[1][i]*dtheta[i];
+    }
+    for (int i=4; i<7; i++) friction[i] = 0; 
+    //**** Create the right hand side of the equation
+    float f[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    for (int i = 0; i < 7; i++)
+        f[i] = massvector[i] + coriolis[i] + grav[i]; // + friction[i]; 
+    // Matrix<float> massv(7,1, (float*) f);
+    // massv.show();
+    
+    // get the constraint jacobian
+    float A[4][3];
+    float B[4][4];
+
+    ragnarABf(q, params, sct, sc, &A, &B);
+
+    //**** Create the left hand side matrix to invert
+    float MC[7][8];
+    //  Serial.println("CM matrix to show if correct");
+    for (int i = 0; i < 7; i++)
+        for (int j = 0; j < 8; j++)
+            MC[i][j] = 0.0;
+    for (int i = 0; i < 7; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            if (j < 4)
+            {
+                if (i < 4)
+                { // create the diagonal matrix inside the matrix
+                    if (i == j)
+                        MC[i][j] = 1;
+                }
+            }
+            else
+            { // put the Cq' here = [B -A]'
+                if (i < 4)
+                    // transpose exchange rows for columns
+                    MC[i][j] = B[j - 4][i]; 
+                else
+                    MC[i][j] = -A[j - 4][i - 4];
+            }
+        }
+    }
+    // Matrix<float> massv(7,8, (float*) MC);
+    // massv.show();
+    
+    float MCt[8][7];
+    for (int i = 0; i < 7; i++)
+        for (int j = 0; j < 8; j++)
+            MCt[j][i] = MC[i][j];
+
+    //  Serial.println("finish CM" );
+    Matrix<float> mm(7, 8, (float *)MC);
+    Matrix<float> mmt(8, 7, (float *)MCt);
+    // Matrix<float> CMi = Matrix<float>::transpose(mm) * Matrix<float>::inv(mm * Matrix<float>::transpose(mm) );
+    Matrix<float> temp = mm * mmt;
+
+    // Test to do the inverse with float precision
+    float temp_1[7][7];
+    for (int i = 0; i < 7; i++)
+        for (int j = 0; j < 7; j++)
+            temp_1[i][j] = float(temp._entity[i][j]);
+    
+    Matrix<float> temp_2(7, 7, (float *)temp_1);
+    Matrix<float> iitemp = Matrix<float>::inv(temp_2);
+    // Return to a float Matrix to do the multiplication to the right hand
+    // side. 
+    float temp_3[7][7];
+    for (int i = 0; i < 7; i++)
+        for (int j = 0; j < 7; j++)
+            temp_3[i][j] = float(iitemp._entity[i][j]);
+
+    /// Matrix<float> itemp = Matrix<float>::inv(temp);
+    Matrix<float> itemp(7, 7, (float *)temp_3);
+
+    //  Matrix<float> CMi = mmt * Matrix<float>::inv(mm * mmt );
+    Matrix<float> CMi = mmt * itemp;
+    Matrix<float> fvector(7, 1, (float *)f);
+    Matrix<float> tau_lambda = CMi * fvector;
+
+    (*torque)[0] = tau_lambda._entity[0][0];
+    (*torque)[1] = tau_lambda._entity[1][0];
+    (*torque)[2] = tau_lambda._entity[2][0];
+    (*torque)[3] = tau_lambda._entity[3][0];
+
+    for(int i=0; i<4; i++) (*torque)[i] = tau_lambda._entity[i][0];
+                                           // + friction[i];
 }
 
 bool ragnarLegMassCentrGrav(

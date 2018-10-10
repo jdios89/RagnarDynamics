@@ -31,6 +31,10 @@ void ragnarTorquesf(
     float q[7], float dtheta[4], float ddq[7], float params[4][8], 
     float parammass[6], float sc[4][6],float sct[8], float g, 
     float (*torque)[4]);
+void ragnarTorquesfimp(
+    float q[7], float dtheta[4], float ddq[7], float params[4][8], 
+    float parammass[6], float sc[4][6],float sct[8], float g, 
+    float (*torque)[4], float impednce[3]);
 bool ragnarLegMassCentrGrav(
     float dtheta[4], float detazeta[4][2], float params[4][8], 
     float parammass[6], float sc[4][6], float sct[8],float g,
