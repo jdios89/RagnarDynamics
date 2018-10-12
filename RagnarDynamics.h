@@ -45,4 +45,8 @@ void ragnarTorquesNf(
     float q[7], float passivef[4][2], float dtheta[4], float ddx[3], 
     float parameter[4][8], float parammass[6], float sc[4][6],float sct[8], 
     float scez[4][4],float g, float (*torque)[4]);
+void computedx(
+    // This is to get the dx 
+    float q[7], float passivef[4][2], float dtheta[4], float parameter[4][8], 
+    float sc[4][6],float sct[8], float (*dx)[3]);
 #endif

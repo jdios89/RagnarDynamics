@@ -810,6 +810,8 @@ void ragnarTorquesfimp(
     float q[7], float dtheta[4], float ddq[7], float params[4][8], 
     float parammass[6], float sc[4][6],float sct[8], float g, 
     float (*torque)[4], float impednce[3])
+    // q = [theta1...theta4, x, y, z] current
+    // dtheta current joint velocity 
 {
     float massvector[7];
     float coriolis[7];
@@ -1115,6 +1117,39 @@ bool ragnarLegMassCentrGrav(
         L*deta*dzeta*se))/2.0;
     (*coriolis_vector)[2] = (L*ml*se*(L*powf(dth,2.0)*ce + L*powf(dzeta,2.0)*ce 
         + 2*b*powf(dth,2.0)*cz + 2*L*dth*dzeta*ce))/4.0;
+}
+
+void computedx(
+    // This is to get the velocity in task space  
+    float q[7], float passivef[4][2], float dtheta[4], float parameter[4][8], 
+    float sc[4][6],float sct[8], float (*dx)[3])
+{
+    // This function just computes the velocity in task space 
+    float thetaf[4], iJ1[3][3], iJ2[3][3], iJ3[3][3], iJ4[3][3];
+    float iJt1[3][3], iJt2[3][3], iJt3[3][3], iJt4[3][3];
+    float pJ1[2][3], pJ2[2][3], pJ3[2][3], pJ4[2][3];
+    float Af[4][3], Bf[4][4];
+    float detazeta[4][2];
+    
+    thetaf[0] = q[0];
+    thetaf[1] = q[1]; 
+    thetaf[2] = q[2];
+    thetaf[3] = q[3];
+    Matrix<float> tempdtheta(4,1,(float*) dtheta);
+    // Compute the general Jacobian 
+    ragnarABf(q, parameter, sct, sc, &Af, &Bf);
+      // Compute dx 
+    Matrix<float> tempAf(4, 3, (float*)Af);
+    Matrix<float> tempBf(4, 4, (float*)Bf);
+    // get the pseudo inverse of A
+    // J = pinv(A)*B
+    // A dx = B d\theta
+    // dx = pinv(A) * B d\theta
+    Matrix<float> at = Matrix<float>::transpose(tempAf);
+    Matrix<float> tempaat = at * tempAf;
+    Matrix<float> itempaat = Matrix<float>::inv(tempaat);
+    Matrix<float> mdx = itempaat * at * tempBf * tempdtheta;
+    for (int i=0;i<3;i++) (*dx)[i] = mdx._entity[i][0];
 }
 
 void ragnarTorquesNf(
